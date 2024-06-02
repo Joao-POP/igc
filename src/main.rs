@@ -1,8 +1,20 @@
-use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder};
+use actix_web::{
+    get, post,
+    web::{self, Data},
+    App, HttpResponse, HttpServer, Responder,
+};
+use std::sync::Mutex;
+
+struct State {
+    counter: Mutex<u64>,
+}
 
 #[get("/")]
-async fn hello() -> impl Responder {
-    HttpResponse::Ok().body("Hello world!")
+async fn hello(data: Data<State>) -> impl Responder {
+    let mut counter = data.counter.lock().unwrap();
+    *counter += 1;
+
+    HttpResponse::Ok().body(format!("Hello world! {counter} time(s) already"))
 }
 
 #[post("/echo")]
@@ -16,8 +28,13 @@ async fn manual_hello() -> impl Responder {
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    HttpServer::new(|| {
+    let counter = Data::new(State {
+        counter: Mutex::new(0),
+    });
+
+    HttpServer::new(move || {
         App::new()
+            .app_data(counter.clone())
             .service(hello)
             .service(echo)
             .route("/hey", web::get().to(manual_hello))
